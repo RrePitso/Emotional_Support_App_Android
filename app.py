@@ -15,7 +15,7 @@ emotion_classifier = pipeline(
 )
 
 # 2. Load Yi-6B-Chat Model and Tokenizer (update with your actual model)
-chat_model_name = "NousResearch/Yi-6B-Chat"  # Or your fine-tuned version
+chat_model_name = "01-ai/Yi-6B-Chat"  # Or your fine-tuned version
 tokenizer = AutoTokenizer.from_pretrained(chat_model_name)
 model = AutoModelForCausalLM.from_pretrained(
     chat_model_name,

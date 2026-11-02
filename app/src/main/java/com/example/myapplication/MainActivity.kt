@@ -13,6 +13,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -57,7 +59,7 @@ class MainActivity : ComponentActivity() {
             MyApplicationTheme {
                 val navController = rememberNavController()
 
-                if (auth.currentUser == null) {
+                if (!BuildConfig.DEBUG && auth.currentUser == null) {
                     // Show Google Sign-In button if not signed in
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -99,13 +101,13 @@ fun NavigationHost(navController: androidx.navigation.NavHostController) {
         navController = navController,
         startDestination = Screen.Home.route
     ) {
-        androidx.navigation.compose.composable(Screen.Home.route) {
+        composable(Screen.Home.route) {
             HomeScreen(navController)
         }
-        androidx.navigation.compose.composable(Screen.Journal.route) {
+        composable(Screen.Journal.route) {
             JournalScreen(LocalContext.current)
         }
-        androidx.navigation.compose.composable(Screen.Chatbot.route) {
+        composable(Screen.Chatbot.route) {
             ChatbotScreen()
         }
     }

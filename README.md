@@ -31,6 +31,35 @@ provider must be configured. For a different embedding model, set
 `EMBEDDING_MODEL` in `.env` before starting the service; stored vectors from a
 different model should be regenerated before using them together.
 
+## Deploy the backend to Render
+
+The root `render.yaml` is a Render Blueprint for a free Python web service.
+
+1. Push this repository to GitHub.
+2. In Render, choose **New → Blueprint**, connect the repository, and deploy the
+   `render.yaml` Blueprint.
+3. Enter `GEMINI_API_KEY` when prompted. To enable the optional Cloudflare
+   fallback, add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` under the
+   service's **Environment** settings. Keep these values in Render, not in the
+   repository.
+4. After the deploy succeeds, open the service URL ending in `.onrender.com`.
+   The root page should return a JSON welcome message.
+5. Build the APK with that HTTPS URL, including the final slash:
+
+   ```bash
+   bash ./gradlew assembleDebug -PbackendBaseUrl=https://YOUR-SERVICE.onrender.com/
+   ```
+
+Render's free service has 512 MB RAM and spins down when idle. This backend loads
+PyTorch and transformer models, so the free instance may run out of memory or
+restart; even when it stays up, its first request after idle may take about a
+minute to wake and longer while models load. The model cache is not persistent
+on the free filesystem, so it may need to download the models again after a
+restart. If Render logs show out-of-memory restarts, the backend will need more
+memory or the models must be moved to a separate inference service. The API is
+public, so keep provider credentials secret and monitor provider and hosting
+usage.
+
 ## Build and test the Android app
 
 Install Android Studio and Android SDK Platform 35 (including Android SDK Build
@@ -41,8 +70,11 @@ for the Gradle build.
 Start the backend on an address reachable from the phone. For a phone and
 development computer on the same Wi-Fi, use the computer's LAN IP and allow port
 8000 through its firewall. For an Android emulator, use `http://10.0.2.2:8000/`.
-For a remote Codespace, use its forwarded HTTPS port URL. Build a debug APK with
-the corresponding backend URL:
+`10.0.2.2` is only the Android emulator's alias for the computer running the
+emulator; it will not reach your computer from a physical device or an online APK
+tester. For those, use a backend URL reachable by that device/test service. For a
+remote Codespace or Render deployment, use its forwarded HTTPS port URL. Build
+a debug APK with the corresponding backend URL:
 
 ```bash
 bash ./gradlew assembleDebug -PbackendBaseUrl=http://192.168.1.10:8000/
@@ -52,7 +84,8 @@ Replace the example address with the backend address your phone can reach. The
 APK is written to `app/build/outputs/apk/debug/app-debug.apk`. Install that APK
 on the phone with Android Studio/ADB or transfer it to the device. Debug builds
 permit cleartext HTTP for local testing; release builds keep the existing
-network-security restrictions. Do not ship a release build using plain HTTP.
+network-security restrictions. Use HTTPS for a deployed backend and do not ship
+a release build using plain HTTP.
 
 Provider keys stay on the backend and are never included in the APK. The app
 contains only the backend URL.

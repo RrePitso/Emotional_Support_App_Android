@@ -1,6 +1,7 @@
 package com.example.myapplication
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -8,7 +9,7 @@ import kotlinx.coroutines.launch
 
 data class Message(val text: String, val isUser: Boolean)
 
-class ChatbotViewModel : ViewModel() {
+class ChatbotViewModel(application: Application) : AndroidViewModel(application) {
     private val api = ChatbotApi.create()
 
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
@@ -20,15 +21,19 @@ class ChatbotViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                // Prepare the request
-                val request = ChatRequest(user_input = userMessage)
+                val journalEntries = loadJournalEntries(getApplication())
+                val memoryEntries = journalEntries
+                    .filter { !it.embedding.isNullOrEmpty() }
+                    .takeLast(100)
+                val request = ChatRequest(
+                    user_input = userMessage,
+                    entries = memoryEntries,
+                    mood_trend = summarizeMoodTrend(journalEntries)
+                )
 
-                // Make the API call
                 val response = api.getChatResponse(request)
 
-                // Add the chatbot's response to the conversation
-                val botMessage = response.response // Updated to match FastAPI's response
-                _messages.value = _messages.value + Message(botMessage, isUser = false)
+                _messages.value = _messages.value + Message(response.response, isUser = false)
             } catch (e: Exception) {
                 // Handle exceptions
                 val errorMessage = "Error: ${e.message}"

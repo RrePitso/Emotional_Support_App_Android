@@ -43,4 +43,48 @@ class ExampleUnitTest {
 
         assertEquals(entry, restored)
     }
+
+    @Test
+    fun snakeCaseMetadataFromBackendDeserializes() {
+        val savedJson = """
+            {
+              "text":"A hopeful day",
+              "timestamp":5678,
+              "id":"entry-1",
+              "emotion_labels":[{"label":"joy","score":0.92}],
+              "embedding":[0.1,0.2],
+              "embedding_model":"test-model"
+            }
+        """.trimIndent()
+
+        val entry = Gson().fromJson(savedJson, JournalEntry::class.java)
+
+        assertEquals(listOf(EmotionLabel("joy", 0.92f)), entry.emotionLabels)
+        assertEquals(listOf(0.1f, 0.2f), entry.embedding)
+        assertEquals("test-model", entry.embeddingModel)
+    }
+
+    @Test
+    fun moodTrendUsesOnlyThePreviousSevenDays() {
+        val now = 1_800_000_000_000L
+        val entries = listOf(
+            JournalEntry(
+                text = "Recent",
+                timestamp = now - 1_000,
+                emotionLabels = listOf(EmotionLabel("joy", 0.9f))
+            ),
+            JournalEntry(
+                text = "Old",
+                timestamp = now - 8L * 24 * 60 * 60 * 1000,
+                emotionLabels = listOf(EmotionLabel("sadness", 0.9f))
+            )
+        )
+
+        val trend = summarizeMoodTrend(entries, now)
+
+        assertEquals(
+            "In the last 7 days, the app detected these recurring emotions: joy (1).",
+            trend
+        )
+    }
 }

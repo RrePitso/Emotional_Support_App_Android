@@ -9,26 +9,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
 
 @Composable
 fun JournalScreen(context: Context) {
-    // SharedPreferences setup
-    val sharedPreferences = remember { context.getSharedPreferences("JournalApp", Context.MODE_PRIVATE) }
-    val gson = Gson()
-
-    // Load saved journal entries from SharedPreferences
-    var journalEntries by remember {
-        val savedData = sharedPreferences.getString("journalEntries", "[]")
-        val type = object : TypeToken<List<JournalEntry>>() {}.type
-        mutableStateOf(gson.fromJson(savedData, type) ?: emptyList<JournalEntry>())
-    }
-
+    var journalEntries by remember { mutableStateOf(loadJournalEntries(context)) }
     var journalText by remember { mutableStateOf("") }
+    var saveStatus by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -57,21 +49,49 @@ fun JournalScreen(context: Context) {
         Button(
             onClick = {
                 if (journalText.isNotBlank()) {
-                    val newEntry = JournalEntry(journalText, System.currentTimeMillis())
-                    journalEntries = journalEntries + newEntry // Add the new entry to the list
+                    val newEntry = JournalEntry(
+                        text = journalText,
+                        timestamp = System.currentTimeMillis(),
+                        id = UUID.randomUUID().toString()
+                    )
+                    journalEntries = journalEntries + newEntry
+                    saveJournalEntries(context, journalEntries)
+                    journalText = ""
+                    saveStatus = "Saved on this device. Analyzing entry for memory."
 
-                    // Save entries to SharedPreferences
-                    with(sharedPreferences.edit()) {
-                        putString("journalEntries", gson.toJson(journalEntries))
-                        apply()
+                    coroutineScope.launch {
+                        try {
+                            val analysis = ChatbotApi.create().analyzeJournalEntry(
+                                JournalAnalysisRequest(newEntry.text)
+                            )
+                            journalEntries = journalEntries.map { entry ->
+                                if (entry.id == newEntry.id) {
+                                    entry.copy(
+                                        emotionLabels = analysis.emotions,
+                                        embedding = analysis.embedding,
+                                        embeddingModel = analysis.embeddingModel
+                                    )
+                                } else {
+                                    entry
+                                }
+                            }
+                            saveJournalEntries(context, journalEntries)
+                            saveStatus = "Entry saved with emotion and memory data."
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (error: Exception) {
+                            saveStatus = "Saved locally, but entry analysis failed: " +
+                                (error.message ?: "backend unavailable")
+                        }
                     }
-
-                    journalText = "" // Clear the input field
                 }
             },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Save Entry")
+        }
+        saveStatus?.let { status ->
+            Text(text = status, style = MaterialTheme.typography.bodySmall)
         }
 
         // Display Saved Entries

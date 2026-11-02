@@ -4,6 +4,10 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from dotenv import load_dotenv
+
+
+load_dotenv()
 
 MAX_ATTEMPTS = 2
 REQUEST_TIMEOUT_SECONDS = 20

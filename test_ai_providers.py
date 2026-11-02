@@ -40,6 +40,19 @@ class ProviderFallbackTests(unittest.TestCase):
         self.assertEqual(result, "Fallback response")
         fallback.assert_called_once_with("Hello", "test-account", "test-cloudflare-token")
 
+    def test_cloudflare_request_uses_configured_api_token(self):
+        response = BytesIO(b'{"result": {"response": "Hello"}}')
+        with patch.object(ai_providers, "urlopen", return_value=response) as request:
+            ai_providers._generate_cloudflare(
+                "Hello", "test-account", "test-cloudflare-token"
+            )
+
+        sent_request = request.call_args.args[0]
+        self.assertEqual(
+            "Bearer test-cloudflare-token",
+            sent_request.get_header("Authorization"),
+        )
+
     def test_reports_missing_provider_configuration(self):
         with patch.dict(os.environ, {}, clear=True):
             with self.assertRaises(ai_providers.ProviderUnavailable) as error:

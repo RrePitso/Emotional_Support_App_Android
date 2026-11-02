@@ -5,6 +5,9 @@ plugins {
     id 'kotlin-kapt'
 }
 
+def backendBaseUrl = providers.gradleProperty("backendBaseUrl")
+    .getOrElse("http://10.0.2.2:8000/")
+
 android {
     namespace 'com.example.myapplication'
     compileSdk 35
@@ -17,6 +20,7 @@ android {
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField "String", "BACKEND_BASE_URL", "\"${backendBaseUrl}\""
     }
 
     buildTypes {
@@ -37,6 +41,7 @@ android {
 
     buildFeatures {
         compose true
+        buildConfig true
     }
 
     composeOptions {

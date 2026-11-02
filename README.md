@@ -19,17 +19,19 @@ cp .env.example .env
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-The first request downloads the GoEmotions classifier and the
-`sentence-transformers/all-MiniLM-L6-v2` embedding model from Hugging Face.
+Emotion analysis and journal embeddings run locally using lightweight,
+deterministic Python code; the backend does not download or load transformer
+models. Emotion detection uses a small word/phrase lexicon, and journal retrieval
+uses 256-dimensional hashed word and adjacent-word features. These are intended
+for a small portfolio demo, not production-quality language understanding.
 The chatbot tries Gemini first and Cloudflare Workers AI if Gemini is unavailable.
 Set `GEMINI_API_KEY` in `.env`. For Cloudflare fallback, also set
 `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. Create the token in Cloudflare
 with the minimum account permission needed to run Workers AI models.
 
 `.env` is ignored by Git; `.env.example` contains placeholders only. At least one
-provider must be configured. For a different embedding model, set
-`EMBEDDING_MODEL` in `.env` before starting the service; stored vectors from a
-different model should be regenerated before using them together.
+chat provider must be configured. Provider free-tier availability and quotas can
+change; check the provider's current terms and usage limits.
 
 ## Deploy the backend to Render
 
@@ -50,15 +52,12 @@ The root `render.yaml` is a Render Blueprint for a free Python web service.
    bash ./gradlew assembleDebug -PbackendBaseUrl=https://YOUR-SERVICE.onrender.com/
    ```
 
-Render's free service has 512 MB RAM and spins down when idle. This backend loads
-PyTorch and transformer models, so the free instance may run out of memory or
-restart; even when it stays up, its first request after idle may take about a
-minute to wake and longer while models load. The model cache is not persistent
-on the free filesystem, so it may need to download the models again after a
-restart. If Render logs show out-of-memory restarts, the backend will need more
-memory or the models must be moved to a separate inference service. The API is
-public, so keep provider credentials secret and monitor provider and hosting
-usage.
+Render's free service has limited memory and spins down when idle. This backend
+does not load large local ML models, so its emotion analysis and embeddings avoid
+the previous transformer-related memory spike. The first request after idle may
+still take time while the service wakes. Chat replies still require a configured
+Gemini or Cloudflare provider and are subject to that provider's availability and
+quotas. The API is public, so keep provider credentials secret.
 
 ## Build and test the Android app
 
@@ -111,7 +110,9 @@ answers the request. Avoid entering information you do not want processed by
 those services.
 
 Older journal entries without metadata remain readable and are not retrieved until
-they have been analyzed.
+they have been analyzed. Embeddings use the `hashing-embedding-v1` identifier;
+entries with vectors from the previous transformer model are ignored for retrieval
+until re-analyzed.
 
 ## Tests
 

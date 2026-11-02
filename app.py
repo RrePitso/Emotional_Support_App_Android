@@ -1,29 +1,11 @@
-import os
 from datetime import datetime, timezone
-from functools import lru_cache
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from transformers import pipeline
 from ai_providers import ProviderUnavailable, generate_with_fallback
 from journal_memory import score_entries
-
-# Emotion classifier pipeline (GoEmotions)
-emotion_classifier = pipeline(
-    "text-classification",
-    model="monologg/bert-base-cased-goemotions-original",
-    return_all_scores=True
-)
-
-EMBEDDING_MODEL = os.getenv(
-    "EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
-)
-
-
-@lru_cache(maxsize=1)
-def get_embedding_pipeline():
-    return pipeline("feature-extraction", model=EMBEDDING_MODEL)
+from lightweight_nlp import EMBEDDING_MODEL, create_embedding, detect_emotions
 
 
 # Emotion to intent mapping
@@ -78,35 +60,6 @@ class ChatResponse(BaseModel):
     response: str
     emotion: str
     intent: str
-
-
-def detect_emotion(text):
-    return detect_emotions(text)[0].label
-
-
-def detect_emotions(text):
-    scores = emotion_classifier(text)[0]
-    top_scores = sorted(scores, key=lambda item: item["score"], reverse=True)[:5]
-    return [
-        EmotionLabel(label=item["label"].lower(), score=float(item["score"]))
-        for item in top_scores
-    ]
-
-
-def create_embedding(text):
-    token_vectors = get_embedding_pipeline()(text, truncation=True, max_length=256)[0]
-    if not token_vectors:
-        raise ValueError("The embedding model returned no token vectors.")
-
-    dimensions = len(token_vectors[0])
-    mean_vector = [
-        sum(float(token[dimension]) for token in token_vectors) / len(token_vectors)
-        for dimension in range(dimensions)
-    ]
-    norm = sum(value * value for value in mean_vector) ** 0.5
-    if not norm:
-        raise ValueError("The embedding model returned a zero-length vector.")
-    return [value / norm for value in mean_vector]
 
 
 SYSTEM_PROMPT = """You are a warm, empathetic emotional-support assistant.
@@ -168,7 +121,7 @@ def chat(request: ChatRequest):
     user_input = request.user_input
 
     # Emotion detection
-    emotions = detect_emotions(user_input)
+    emotions = [EmotionLabel(**emotion) for emotion in detect_emotions(user_input)]
     emotion = emotions[0].label
     intent = emotion_to_intent.get(emotion, "acknowledge")
     retrieved_entries = []
@@ -205,7 +158,7 @@ def chat(request: ChatRequest):
 
 @app.post("/journal/analyze", response_model=JournalAnalysisResponse)
 def analyze_journal_entry(request: JournalAnalysisRequest):
-    emotions = detect_emotions(request.text)
+    emotions = [EmotionLabel(**emotion) for emotion in detect_emotions(request.text)]
     embedding = create_embedding(request.text)
     return JournalAnalysisResponse(
         emotions=emotions,

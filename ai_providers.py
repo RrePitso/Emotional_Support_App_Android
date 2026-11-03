@@ -59,7 +59,7 @@ def _generate_gemini(prompt, api_key):
         {"x-goog-api-key": api_key},
         {
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 256},
+            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 1024},
         },
     )
     try:

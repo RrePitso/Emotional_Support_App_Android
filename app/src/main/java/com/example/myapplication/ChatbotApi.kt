@@ -5,6 +5,8 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.POST
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 // Request body for the FastAPI backend
 data class ChatRequest(
@@ -43,11 +45,17 @@ interface ChatbotApi {
 
     companion object {
         fun create(): ChatbotApi {
-            val retrofit = Retrofit.Builder()
-                .baseUrl(BuildConfig.BACKEND_BASE_URL)
-                .addConverterFactory(GsonConverterFactory.create())
-                .build()
-            return retrofit.create(ChatbotApi::class.java)
-        }
+    val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+    val retrofit = Retrofit.Builder()
+        .baseUrl(BuildConfig.BACKEND_BASE_URL)
+        .client(client)
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+    return retrofit.create(ChatbotApi::class.java)
+}
     }
 }

@@ -1,140 +1,134 @@
-# Emotional Support App
+# Khula
 
-An Android journal and emotional-support chat app backed by a FastAPI service.
-Journal entries stay in Android `SharedPreferences`; the configured backend
-analyzes each new entry and returns emotion labels and a normalized text embedding.
-When chatting, the app sends the latest 100 entries with embeddings and a seven-day
-mood summary so the backend can retrieve relevant context.
+An Android journal and emotional-support chat app with a FastAPI backend. Journal entries are stored on the device. The backend analyzes each entry for emotion and a text embedding, then uses those to retrieve relevant past entries when you chat, so the chatbot can respond with context from your own journal.
+
+> **Status:** personal portfolio project. It is not a medical or mental-health product and is not a substitute for professional help.
+
+[Screenshot or demo GIF here]![alt text](Screenshot_20261103-113559.png) ![alt text](Screenshot_20261103-113606.png) ![alt text](Screenshot_20261103-113617.png)
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A[Android app<br/>Kotlin + Compose] -->|POST /journal/analyze| B[FastAPI on Render]
+    A -->|POST /chat/ + recent entries| B
+    B --> C[Emotion lexicon + hashed embeddings]
+    B --> D[Retrieval scoring]
+    D --> E[Prompt builder]
+    E --> F{Provider fallback}
+    F -->|primary| G[Gemini API]
+    F -->|fallback| H[Cloudflare Workers AI]
+    A --- I[(SharedPreferences<br/>journal on device)]
+```
+
+## How it works
+
+1. **Save an entry.** The text is written to local storage immediately. The app then calls `POST /journal/analyze`, which returns emotion labels and a 256-dimensional embedding that are stored with the entry. If the backend is unreachable, the entry is still saved and the screen shows the failure.
+2. **Chat.** The app sends your message, up to 100 recent entries that have embeddings, and a seven-day mood summary to `POST /chat/`.
+3. **Retrieve.** The backend scores each entry and keeps up to three excerpts:
+   - cosine similarity of embeddings: 60%
+   - recency (30-day decay): 25%
+   - emotion-label overlap: 15%
+4. **Generate.** The mood trend, retrieved excerpts, and your message go into a prompt with supportive-response and safety guidance. The backend tries Gemini first and falls back to Cloudflare Workers AI if Gemini fails.
+
+## Design decisions
+
+- **Local-first storage.** Journal text stays on the device and a backend outage never loses an entry.
+- **Provider fallback.** A shared request helper uses bounded retries with exponential backoff. Provider name, success or failure, and elapsed time are logged, and prompts and journal text are never logged.
+- **Free-tier hosting.** The backend loads no large ML models, so it fits Render's free tier.
+- **Hybrid retrieval.** Similarity, recency, and emotion overlap combine into a transparent score rather than similarity alone.
+- **Prompt-injection awareness.** Retrieved journal text is labeled as untrusted context in the prompt.
+
+## Known limitations
+
+These are real and I would rather state them than have them discovered.
+
+- **Embeddings are lexical, not semantic.** They are hashed word and adjacent-word features, so they reward shared wording and do not understand meaning. "Worried" will not match "anxious". Replacing them with a real embedding model is the main planned improvement.
+- **Emotion detection is a keyword lexicon.** It uses GoEmotions-style label names, but it is not the GoEmotions model, and it is often wrong. A message about wanting more trust at work was labeled "desire".
+- **No authentication or rate limiting.** The API is public, so anyone with the URL can use the provider quota. Planned: token verification, rate limits, and request-size caps.
+- **No pre-call crisis detection.** Crisis handling currently depends on prompt instructions only. Planned: a keyword and pattern check that returns crisis resources before any model call, with tests.
+- **Local storage is not encrypted, and there is no delete-all feature.**
+- **Privacy.** Journal text is sent to the backend, and selected excerpts and your message are sent to Gemini or Cloudflare. Do not enter anything you would not want processed by those services. The app makes no confidentiality promises.
+- **Cold starts.** Render's free tier sleeps when idle, so the first request can take up to a minute. The app shows a "still thinking" hint after 8 seconds and uses long network timeouts.
+- **Free-tier quotas and model names change.** See "Troubleshooting".
+
+## Evaluation
+
+Current automated tests check retrieval mechanics (ranking, recency, emotion overlap, exclusion of entries without embeddings) and provider retry and fallback logic. They use synthetic data and mocked providers, so they verify control flow, not real-world retrieval quality or live provider availability.
 
 ## Backend setup
 
-Python 3.10 or newer is recommended.
+Python 3.10 or newer.
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env locally and add your Gemini key. Do not paste it into chat or commit it.
+# Edit .env locally. Never commit it or paste keys into chat.
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-Emotion analysis and journal embeddings run locally using lightweight,
-deterministic Python code; the backend does not download or load transformer
-models. Emotion detection uses a small word/phrase lexicon, and journal retrieval
-uses 256-dimensional hashed word and adjacent-word features. These are intended
-for a small portfolio demo, not production-quality language understanding.
-The chatbot tries Gemini first and Cloudflare Workers AI if Gemini is unavailable.
-Set `GEMINI_API_KEY` in `.env`. For Cloudflare fallback, also set
-`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. Create the token in Cloudflare
-with the minimum account permission needed to run Workers AI models.
+Interactive API docs are at `/docs`.
 
-`.env` is ignored by Git; `.env.example` contains placeholders only. At least one
-chat provider must be configured. Provider free-tier availability and quotas can
-change; check the provider's current terms and usage limits.
+### Environment variables
 
-## Deploy the backend to Render
+| Variable | Required | Purpose |
+|---|---|---|
+| `GEMINI_API_KEY` | One provider needed | Primary chat provider |
+| `GEMINI_MODEL` | No | Gemini model name. Set this if the default is retired |
+| `CLOUDFLARE_ACCOUNT_ID` | For fallback | Cloudflare account |
+| `CLOUDFLARE_API_TOKEN` | For fallback | Token with Workers AI permission only |
+| `CLOUDFLARE_AI_MODEL` | No | Fallback model name |
 
-The root `render.yaml` is a Render Blueprint for a free Python web service.
+Free-tier availability, quotas, and model names change often. Check each provider's current documentation.
 
-1. Push this repository to GitHub.
-2. In Render, choose **New → Blueprint**, connect the repository, and deploy the
-   `render.yaml` Blueprint.
-3. Enter `GEMINI_API_KEY` when prompted. To enable the optional Cloudflare
-   fallback, add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` under the
-   service's **Environment** settings. Keep these values in Render, not in the
-   repository.
-4. After the deploy succeeds, open the service URL ending in `.onrender.com`.
-   The root page should return a JSON welcome message.
-5. Build the APK with that HTTPS URL, including the final slash:
+## Deploy to Render
 
-   ```bash
-   bash ./gradlew assembleDebug -PbackendBaseUrl=https://YOUR-SERVICE.onrender.com/
-   ```
+`render.yaml` defines a free Python web service.
 
-Render's free service has limited memory and spins down when idle. This backend
-does not load large local ML models, so its emotion analysis and embeddings avoid
-the previous transformer-related memory spike. The first request after idle may
-still take time while the service wakes. Chat replies still require a configured
-Gemini or Cloudflare provider and are subject to that provider's availability and
-quotas. The API is public, so keep provider credentials secret.
+1. Push the repository to GitHub.
+2. In Render, choose **New, then Blueprint**, connect the repo, and deploy.
+3. Enter `GEMINI_API_KEY` when prompted.
+4. Open **Environment** for the service and add `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, and optionally `GEMINI_MODEL`. Blueprints only prompt for variables declared in `render.yaml`.
+5. Check that the service root URL returns the JSON welcome message.
 
-## Build and test the Android app
+## Build and install the Android app
 
-Install Android Studio and Android SDK Platform 35 (including Android SDK Build
-Tools) using SDK Manager. Open this project in Android Studio and let Gradle sync;
-Android Studio configures the local SDK path without committing it. Use JDK 21
-for the Gradle build.
-
-Start the backend on an address reachable from the phone. For a phone and
-development computer on the same Wi-Fi, use the computer's LAN IP and allow port
-8000 through its firewall. For an Android emulator, use `http://10.0.2.2:8000/`.
-`10.0.2.2` is only the Android emulator's alias for the computer running the
-emulator; it will not reach your computer from a physical device or an online APK
-tester. For those, use a backend URL reachable by that device/test service. For a
-remote Codespace or Render deployment, use its forwarded HTTPS port URL. Build
-a debug APK with the corresponding backend URL:
+Requirements: JDK 21 and Android SDK Platform 35 with build tools.
 
 ```bash
-bash ./gradlew assembleDebug -PbackendBaseUrl=http://192.168.1.10:8000/
+bash ./gradlew assembleDebug -PbackendBaseUrl=https://YOUR-SERVICE.onrender.com/
 ```
 
-Replace the example address with the backend address your phone can reach. The
-APK is written to `app/build/outputs/apk/debug/app-debug.apk`. Install that APK
-on the phone with Android Studio/ADB or transfer it to the device. Debug builds
-permit cleartext HTTP for local testing; release builds keep the existing
-network-security restrictions. Use HTTPS for a deployed backend and do not ship
-a release build using plain HTTP.
+Include the trailing slash. The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 
-Provider keys stay on the backend and are never included in the APK. The app
-contains only the backend URL.
+- **Emulator:** use `http://10.0.2.2:8000/` for a local backend.
+- **Physical phone:** use a backend reachable from the phone, such as your Render URL. `10.0.2.2` only works inside an emulator.
+- **Building in GitHub Codespaces:** Codespaces cannot reach a USB-connected phone. Download the APK and install it from Google Drive or another file source.
+- Updating over an existing install requires the same package name and signing key. Uninstalling the app deletes its local journal data.
 
-## Journal memory flow
-
-1. Saving an entry writes it to local storage immediately.
-2. The app posts the text to `POST /journal/analyze`; if analysis succeeds, it
-   stores the returned emotion scores and embedding alongside the entry. A backend
-   failure does not discard the journal text and is shown in the journal screen.
-3. Chat requests include the latest 100 entries that have embeddings. The backend
-   scores them using cosine similarity (60%), recency (25%, 30-day decay), and
-   emotion overlap (15%), then includes up to three relevant excerpts in the
-   response prompt.
-4. The prompt also contains a seven-day detected-emotion trend and supportive
-   response and safety guidance. Retrieved journal text is treated as untrusted
-   context, not as instructions.
-
-Journal text is sent to the configured backend for save-time analysis. During chat,
-the app sends embedded entries and mood trends to that backend; the selected
-excerpts and current message are then sent to whichever configured AI provider
-answers the request. Avoid entering information you do not want processed by
-those services.
-
-Older journal entries without metadata remain readable and are not retrieved until
-they have been analyzed. Embeddings use the `hashing-embedding-v1` identifier;
-entries with vectors from the previous transformer model are ignored for retrieval
-until re-analyzed.
+Provider keys stay on the backend and are never included in the APK.
 
 ## Tests
 
 ```bash
-python -m unittest test_ai_providers test_journal_memory
+python -m unittest discover -v
 bash ./gradlew testDebugUnitTest
 ```
 
-The retrieval evaluation cases check semantic similarity, recency, emotion overlap,
-and exclusion of entries without embeddings.
+## Troubleshooting
 
-## Interview talking points
+- **Chat times out on the phone.** Check the Render logs for `Provider=...` lines to see which provider answered and how long it took. Confirm the app's HTTP read timeout is longer than Render's cold start.
+- **Gemini returns 404.** The configured model has been retired or renamed. Set `GEMINI_MODEL` to a current model name from Google's documentation.
+- **Replies cut off mid-sentence.** The output token limit is too low for models that use tokens on internal reasoning. Raise `maxOutputTokens` for Gemini and `max_tokens` for Cloudflare.
+- **Debugging story.** Chat requests were timing out because the app's default 10-second timeout was shorter than the backend's work: a Render cold start plus a failing Gemini call, with fallback to Cloudflare hiding the primary failure. Per-provider logging exposed the 404, and the fix combined a new model name with longer, explicit client timeouts.
 
-- **Provider resilience:** Gemini and Cloudflare Workers AI use a shared JSON
-  request helper with bounded retries, exponential backoff, and explicit
-  unavailable-provider errors.
-- **Privacy and persistence:** journal text is stored locally first; backend
-  analysis enriches each entry without making a backend outage lose the entry.
-- **Retrieval:** normalized embeddings, recency decay, and emotion overlap combine
-  into a transparent score before a small number of past entries enter the prompt.
-- **Safety-aware prompting:** mood history is contextual rather than diagnostic;
-  the assistant is instructed to avoid diagnoses and to direct imminent-risk
-  situations toward immediate human or emergency support.
-- **Evaluation:** a small deterministic test set verifies ranking behavior without
-  requiring model downloads or live provider credentials.
+## Roadmap
+
+- [ ] Real semantic embeddings, compared against the hashed baseline
+- [ ] Labeled retrieval benchmark (Recall@k, MRR)
+- [ ] Pre-call crisis detection with tests
+- [ ] API authentication, rate limiting, and request-size limits
+- [ ] GitHub Actions workflow to run tests on every push
+- [ ] Persist chat history; encrypted local storage; delete-all feature

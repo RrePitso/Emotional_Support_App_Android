@@ -95,7 +95,7 @@ def build_support_prompt(user_input, emotion, intent, mood_trend, retrieved_entr
         f"{user_input}\n"
         f"Detected emotion: {emotion}\n"
         f"Supportive response goal: {intent}\n"
-        "Reply directly to the current message, using past context only when it is relevant."
+        "Reply directly to the current message, using past context only when it is relevant.Keep replies to 3-5 short sentences in plain conversational text.Do not use bullet points, lists, or numbered steps. Avoid repeating the user's input. Avoid generic advice. Avoid asking questions unless they are necessary to clarify the user's feelings or situation."
     )
     return "\n\n".join(sections)
 
@@ -114,7 +114,7 @@ def generate_response(
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to the Emotion-Support Chatbot API (Yi-6B + GoEmotions)"}
+    return {"message": "Welcome to the Emotion-Support Chatbot API (Gemini + GoEmotions)"}
 
 @app.post("/chat/", response_model=ChatResponse)
 def chat(request: ChatRequest):

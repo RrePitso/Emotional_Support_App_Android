@@ -90,12 +90,16 @@ def build_support_prompt(user_input, emotion, intent, mood_trend, retrieved_entr
             excerpt = entry.text[:1500]
             excerpts.append(f"- {date} (emotions: {emotions or 'not recorded'}): {excerpt}")
         sections.append("Relevant past journal entries:\n" + "\n".join(excerpts))
-    sections.append(
+        sections.append(
         "Current message:\n"
         f"{user_input}\n"
         f"Detected emotion: {emotion}\n"
         f"Supportive response goal: {intent}\n"
-        "Reply directly to the current message, using past context only when it is relevant.Keep replies to 3-5 short sentences in plain conversational text.Do not use bullet points, lists, or numbered steps. Avoid repeating the user's input. Avoid generic advice. Avoid asking questions unless they are necessary to clarify the user's feelings or situation."
+        "Reply directly to the current message, using past context only when it is relevant. "
+        "Keep replies to 3-5 short sentences in plain conversational text. "
+        "Do not use markdown, bullet points, lists, or numbered steps. "
+        "Avoid generic advice. Ask a question only when needed to understand the person's situation. "
+        "Never make promises about privacy, data storage, or confidentiality."
     )
     return "\n\n".join(sections)
 

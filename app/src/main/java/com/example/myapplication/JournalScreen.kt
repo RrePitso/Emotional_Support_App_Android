@@ -104,7 +104,7 @@ fun JournalScreen(context: Context) {
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(journalEntries) { entry ->
+            items(journalEntries.sortedByDescending { it.timestamp }) { entry ->
                 JournalEntryCard(entry)
             }
         }

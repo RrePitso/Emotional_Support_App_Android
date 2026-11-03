@@ -1,63 +1,83 @@
 package com.example.myapplication
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.background
-import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun ChatbotScreen(viewModel: ChatbotViewModel = viewModel()) {
     val messages by viewModel.messages.collectAsState()
-    var userInput by remember { mutableStateOf(TextFieldValue("")) }
+    val isTyping by viewModel.isTyping.collectAsState()
+    val slowHint by viewModel.slowHint.collectAsState()
+    var userInput by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Chat history
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .padding(16.dp),
-            reverseLayout = true // Show the latest message at the bottom
-        ) {
-            items(messages) { message ->
-                ChatMessage(message)
+    // With reverseLayout, index 0 is the bottom (newest) item.
+    LaunchedEffect(messages.size, isTyping) {
+        listState.animateScrollToItem(0)
+    }
+
+    Column(modifier = Modifier.fillMaxSize().imePadding()) {
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            if (messages.isEmpty() && !isTyping) {
+                Text(
+                    text = "Say hello. This is a private space to talk about how you're feeling.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.Center).padding(32.dp)
+                )
+            }
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                reverseLayout = true,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(vertical = 12.dp)
+            ) {
+                if (isTyping) {
+                    item { TypingBubble(slowHint) }
+                }
+                items(messages.asReversed()) { message ->
+                    ChatMessage(message)
+                }
             }
         }
 
-        // Input field and send button
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Input field
-            BasicTextField(
+            OutlinedTextField(
                 value = userInput,
                 onValueChange = { userInput = it },
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(8.dp)
-                    .fillMaxWidth()
-                    .background(Color.LightGray) // Set a background color for the input field
-                    .padding(8.dp) // Add padding inside the text field
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Type a message...") },
+                maxLines = 4
             )
-
-            // Send button
-            Button(onClick = {
-                if (userInput.text.isNotBlank()) {
-                    viewModel.sendMessage(userInput.text)
-                    userInput = TextFieldValue("") // Clear the input field after sending
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                enabled = userInput.isNotBlank() && !isTyping,
+                onClick = {
+                    viewModel.sendMessage(userInput.trim())
+                    userInput = ""
                 }
-            }) {
+            ) {
                 Text("Send")
             }
         }
@@ -66,26 +86,64 @@ fun ChatbotScreen(viewModel: ChatbotViewModel = viewModel()) {
 
 @Composable
 fun ChatMessage(message: Message) {
-    val alignment = if (message.isUser) Alignment.End else Alignment.Start
-    val backgroundColor = if (message.isUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-    val textColor = if (message.isUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondary
+    val backgroundColor =
+        if (message.isUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+    val textColor =
+        if (message.isUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondary
 
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (message.isUser) Arrangement.End else Arrangement.Start
     ) {
         Box(
             modifier = Modifier
-                .padding(8.dp)
-                .background(backgroundColor) // Set the background color for the message bubble
-                .padding(16.dp) // Add padding inside the bubble
+                .widthIn(max = 300.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(backgroundColor)
+                .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
-            Text(
-                text = message.text,
-                color = textColor // Set the text color for better contrast
-            )
+            Text(text = message.text, color = textColor)
+        }
+    }
+}
+
+@Composable
+fun TypingBubble(slowHint: Boolean) {
+    val transition = rememberInfiniteTransition(label = "typing")
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+        Column(
+            modifier = Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.secondary)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                repeat(3) { index ->
+                    val alpha by transition.animateFloat(
+                        initialValue = 0.3f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 600, delayMillis = index * 200),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "dot$index"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.onSecondary.copy(alpha = alpha))
+                    )
+                }
+            }
+            if (slowHint) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Still thinking... the server may be waking up",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondary
+                )
+            }
         }
     }
 }

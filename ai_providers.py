@@ -1,12 +1,13 @@
 import json
 import os
 import time
+import logging
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from dotenv import load_dotenv
 
-
+logger = logging.getLogger("uvicorn.error")
 load_dotenv()
 
 MAX_ATTEMPTS = 2
@@ -101,21 +102,31 @@ def generate_with_fallback(prompt):
     failures = []
     gemini_key = os.getenv("GEMINI_API_KEY")
     if gemini_key:
+        start = time.time()
         try:
-            return _generate_gemini(prompt, gemini_key)
+            result = _generate_gemini(prompt, gemini_key)
+            logger.info("Provider=Gemini ok in %.1fs", time.time() - start)
+            return result
         except ProviderUnavailable as error:
+            logger.warning("Gemini failed after %.1fs: %s", time.time() - start, error)
             failures.append(str(error))
     else:
+        logger.warning("Gemini not configured")
         failures.append("Gemini is not configured (GEMINI_API_KEY is unset).")
 
     account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID")
     api_token = os.getenv("CLOUDFLARE_API_TOKEN")
     if account_id and api_token:
+        start = time.time()
         try:
-            return _generate_cloudflare(prompt, account_id, api_token)
+            result = _generate_cloudflare(prompt, account_id, api_token)
+            logger.info("Provider=Cloudflare ok in %.1fs", time.time() - start)
+            return result
         except ProviderUnavailable as error:
+            logger.warning("Cloudflare failed after %.1fs: %s", time.time() - start, error)
             failures.append(str(error))
     else:
+        logger.warning("Cloudflare not configured")
         failures.append(
             "Cloudflare Workers AI is not configured "
             "(CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN is unset)."

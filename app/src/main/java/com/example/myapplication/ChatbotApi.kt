@@ -19,7 +19,11 @@ data class ChatRequest(
 
 // Response body from the FastAPI backend
 data class ChatResponse(
-    val response: String
+    val response: String,
+    val emotion: String? = null,
+    val intent: String? = null,
+    val intensity: Int? = null,
+    val trigger: String? = null
 )
 
 data class JournalAnalysisRequest(

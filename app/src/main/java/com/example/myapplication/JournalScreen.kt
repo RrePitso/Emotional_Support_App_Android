@@ -8,7 +8,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.tooling.preview.Preview
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -26,26 +25,22 @@ fun JournalScreen(context: Context) {
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp) // Add spacing between elements
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Title
-        Text(
-            text = "Journal",
-            style = MaterialTheme.typography.titleLarge
-        )
+        Text(text = "Journal", style = MaterialTheme.typography.titleLarge)
 
-        // Styled TextField
+        ReminderCard()
+
         TextField(
             value = journalText,
             onValueChange = { journalText = it },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(150.dp), // Ensure enough height for multi-line input
+                .height(150.dp),
             placeholder = { Text("Write your journal entry here...") },
-            singleLine = false // Allow multi-line input
+            singleLine = false
         )
 
-        // Save Button
         Button(
             onClick = {
                 if (journalText.isNotBlank()) {
@@ -76,6 +71,18 @@ fun JournalScreen(context: Context) {
                                 }
                             }
                             saveJournalEntries(context, journalEntries)
+
+                            analysis.emotions.firstOrNull()?.let { top ->
+                                addEmotionRecord(
+                                    context,
+                                    EmotionRecord(
+                                        timestamp = newEntry.timestamp,
+                                        emotion = top.label,
+                                        intensity = 3,
+                                        source = "journal"
+                                    )
+                                )
+                            }
                             saveStatus = "Entry saved with emotion and memory data."
                         } catch (error: CancellationException) {
                             throw error
@@ -94,14 +101,10 @@ fun JournalScreen(context: Context) {
             Text(text = status, style = MaterialTheme.typography.bodySmall)
         }
 
-        // Display Saved Entries
-        Text(
-            text = "Previous Entries",
-            style = MaterialTheme.typography.titleMedium
-        )
+        Text(text = "Previous Entries", style = MaterialTheme.typography.titleMedium)
 
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.weight(1f).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(journalEntries.sortedByDescending { it.timestamp }) { entry ->
@@ -113,31 +116,22 @@ fun JournalScreen(context: Context) {
 
 @Composable
 fun JournalEntryCard(entry: JournalEntry) {
-    // Format the timestamp
-    val formattedTimestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+    val formattedTimestamp = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
         .format(Date(entry.timestamp))
+    val topEmotion = entry.emotionLabels?.firstOrNull()?.label
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(4.dp)
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
-            Text(
-                text = entry.text,
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Text(text = entry.text, style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = formattedTimestamp,
+                text = if (topEmotion != null) "$formattedTimestamp  •  $topEmotion" else formattedTimestamp,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun JournalScreenPreview() {
-    // Context is not available in preview mode
 }

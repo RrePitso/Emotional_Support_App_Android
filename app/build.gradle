@@ -57,6 +57,7 @@ dependencies {
     implementation libs.androidx.lifecycle.runtime.ktx
     implementation libs.androidx.activity.compose
 
+        implementation "androidx.work:work-runtime-ktx:2.9.0"
     // Import the BoM for the Firebase platform
     implementation(platform("com.google.firebase:firebase-bom:33.13.0"))
 

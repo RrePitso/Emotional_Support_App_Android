@@ -23,5 +23,9 @@ fun HomeScreen(navController: NavController) {
         Button(onClick = { navController.navigate(Screen.Chatbot.route) }) {
             Text("Go to Chatbot")
         }
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = { navController.navigate(Screen.Report.route) }) {
+            Text("Weekly Emotion Report")
+        }
     }
 }

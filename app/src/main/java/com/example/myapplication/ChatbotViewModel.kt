@@ -12,7 +12,7 @@ import retrofit2.HttpException
 import java.io.IOException
 import java.net.SocketTimeoutException
 
-data class Message(val text: String, val isUser: Boolean)
+data class Message(val text: String, val isUser: Boolean, val emotionNote: String? = null)
 
 class ChatbotViewModel(application: Application) : AndroidViewModel(application) {
     private val api = ChatbotApi.create()
@@ -48,7 +48,24 @@ class ChatbotViewModel(application: Application) : AndroidViewModel(application)
                     mood_trend = summarizeMoodTrend(journalEntries)
                 )
                 val response = api.getChatResponse(request)
-                _messages.value = _messages.value + Message(response.response, isUser = false)
+
+                val emotion = response.emotion
+                var note: String? = null
+                if (!emotion.isNullOrBlank()) {
+                    val intensity = (response.intensity ?: 3).coerceIn(1, 5)
+                    addEmotionRecord(
+                        getApplication(),
+                        EmotionRecord(
+                            timestamp = System.currentTimeMillis(),
+                            emotion = emotion,
+                            intensity = intensity,
+                            source = "chat",
+                            trigger = response.trigger.orEmpty()
+                        )
+                    )
+                    note = "Sensed: $emotion ($intensity/5)"
+                }
+                _messages.value = _messages.value + Message(response.response, false, note)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

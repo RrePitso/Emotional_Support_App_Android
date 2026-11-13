@@ -84,6 +84,7 @@ fun ChatbotScreen(viewModel: ChatbotViewModel = viewModel()) {
     }
 }
 
+
 @Composable
 fun ChatMessage(message: Message) {
     val backgroundColor =
@@ -95,14 +96,24 @@ fun ChatMessage(message: Message) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (message.isUser) Arrangement.End else Arrangement.Start
     ) {
-        Box(
-            modifier = Modifier
-                .widthIn(max = 300.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(backgroundColor)
-                .padding(horizontal = 14.dp, vertical = 10.dp)
-        ) {
-            Text(text = message.text, color = textColor)
+        Column(horizontalAlignment = if (message.isUser) Alignment.End else Alignment.Start) {
+            Box(
+                modifier = Modifier
+                    .widthIn(max = 300.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(backgroundColor)
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            ) {
+                Text(text = message.text, color = textColor)
+            }
+            message.emotionNote?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 6.dp, top = 2.dp)
+                )
+            }
         }
     }
 }

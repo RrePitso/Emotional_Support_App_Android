@@ -101,14 +101,9 @@ fun NavigationHost(navController: androidx.navigation.NavHostController) {
         navController = navController,
         startDestination = Screen.Home.route
     ) {
-        composable(Screen.Home.route) {
-            HomeScreen(navController)
-        }
-        composable(Screen.Journal.route) {
-            JournalScreen(LocalContext.current)
-        }
-        composable(Screen.Chatbot.route) {
-            ChatbotScreen()
-        }
+        composable(Screen.Home.route) { HomeScreen(navController) }
+        composable(Screen.Journal.route) { JournalScreen(LocalContext.current) }
+        composable(Screen.Chatbot.route) { ChatbotScreen() }
+        composable(Screen.Report.route) { ReportScreen(LocalContext.current) }
     }
 }

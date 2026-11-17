@@ -4,7 +4,7 @@ An Android journal and emotional-support chat app with a FastAPI backend. Journa
 
 > **Status:** personal portfolio project. It is not a medical or mental-health product and is not a substitute for professional help.
 
-[Screenshot or demo GIF here]![alt text](Screenshot_20261103-113559.png) ![alt text](Screenshot_20261103-113606.png) ![alt text](Screenshot_20261103-113617.png)
+![alt text](Screenshot_20261103-113559.png) ![alt text](Screenshot_20261103-113606.png) ![alt text](Screenshot_20261103-113617.png)
 
 ## Architecture
 
